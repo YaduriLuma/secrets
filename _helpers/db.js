@@ -29,30 +29,49 @@ async function inicializa() {
     const userName = process.env.userNameBd
     const password = process.env.password
 
-    // Cria o banco se ainda não existe
-    await verificaDbExiste(dbName)
+    
 
     //Conecta no DB
-    const sequelize = new Sequelize(dbName, userName, password, {
-        host, dialect: process.env.dialect,
-        dialectOptions: {
-            options: {
-                "encrypt": dbConfig.options.encrypt
+    if (process.env.dialect == 'mssql') {
+        // Cria o banco se ainda não existe
+        await verificaDbExiste(dbName)
+
+        let sequelize = new Sequelize(dbName, userName, password, {
+            host, dialect: process.env.dialect,
+            dialectOptions: {
+                options: {
+                    "encrypt": dbConfig.options.encrypt
+                }
             }
-        }
-    });
+        })
 
-    // inicia o modelo e adiona ele aos objetos exportados do DB
-    // adicionar todos os modelos aqui
-    db.Usuario = require('../usuario/usuario.model')(sequelize);
+        // inicia o modelo e adiona ele aos objetos exportados do DB
+        // adicionar todos os modelos aqui
+        db.Usuario = require('../usuario/usuario.model')(sequelize);
+        
+        // sincroniza os modelos com o banco
+        await sequelize.sync({ alter: true })
 
-    // sincroniza os modelos com o banco
-    await sequelize.sync({ alter: true });
+    } else if (process.env.dialect == 'postgres') {
+        const sequelize = new Sequelize(dbName, userName, password,
+            {
+                host: host,
+                dialect: process.env.dialect,
+                dialectOptions: {
+                    ssl: {
+                        require: dbConfig.options.encrypt
+                    }
+                }
+            });
+        db.Usuario = require('../usuario/usuario.model')(sequelize);
+        await sequelize.sync({ alter: true });
+    }
+
 }
 
 async function verificaDbExiste(dbName) {
     return new Promise((resolve, reject) => {
-        const connection = new tedious.Connection(dbConfig);
+        const connection = new tedious.Connection(dbConfig)
         connection.connect((err) => {
             if (err) {
                 console.error(err);
